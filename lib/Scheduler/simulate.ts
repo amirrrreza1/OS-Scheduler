@@ -1,5 +1,3 @@
-// src/lib/scheduler/simulate.ts
-
 import type {
   ProcessInput,
   Segment,
@@ -57,7 +55,6 @@ function simulateInt(
     guard < maxTicks && completedCount < processes.length;
     guard++
   ) {
-    // arrivals
     while (
       nextArrivalIdx < sorted.length &&
       sorted[nextArrivalIdx].arrival === state.time
@@ -74,7 +71,6 @@ function simulateInt(
       nextArrivalIdx++;
     }
 
-    // context switch tick
     if (state.csRemaining > 0) {
       pushOrMerge(timeline, "CS", state.time);
       state.csRemaining -= 1;
@@ -97,7 +93,6 @@ function simulateInt(
       executedPid: null,
     });
 
-    // if preempting, push prev back to ready (if unfinished)
     if (
       chosen !== state.running &&
       state.running &&
@@ -106,13 +101,11 @@ function simulateInt(
       state.ready.push(state.running);
     }
 
-    // remove chosen from ready when switching to it
     if (chosen && chosen !== state.running) {
       const idx = state.ready.indexOf(chosen);
       if (idx >= 0) state.ready.splice(idx, 1);
     }
 
-    // process context switch when switching between two real processes
     if (contextSwitch > 0 && prevRunning && chosen && chosen !== prevRunning) {
       state.running = null;
       state.csTo = chosen;
@@ -133,7 +126,6 @@ function simulateInt(
 
     state.running = chosen;
 
-    // execution or idle
     pushOrMerge(timeline, state.running, state.time);
 
     const executedPid = state.running;
@@ -157,7 +149,6 @@ function simulateInt(
 
   const makespan = timeline.length ? timeline[timeline.length - 1].end : 0;
 
-  // Busy time excludes CS; change if you want CS counted as busy
   const totalBusy = timeline.reduce((sum, s) => {
     if (!s.pid) return sum;
     if (s.pid === "CS") return sum;
@@ -254,7 +245,6 @@ export function simulate(
   if (opts?.quantum != null) nums.push(opts.quantum);
   if (opts?.contextSwitch != null) nums.push(opts.contextSwitch);
 
-  // cap to 2 decimals for performance
   const scale = computeScale(nums, 2);
 
   if (scale === 1) return simulateInt(processes, policy, opts);
@@ -262,7 +252,7 @@ export function simulate(
   const scaledProcesses = processes.map((p) => ({
     ...p,
     arrival: Math.max(0, scaleToInt(p.arrival, scale)),
-    burst: Math.max(1, scaleToInt(p.burst, scale)), // burst must be >= 1 tick
+    burst: Math.max(1, scaleToInt(p.burst, scale)),
   }));
 
   const scaledOpts = {

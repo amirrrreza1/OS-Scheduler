@@ -1,8 +1,3 @@
-// src/lib/scheduler/simulateThreads.ts
-// Hierarchical scheduling (Process strategy + Thread strategy)
-// NO context switch at all (no CS-P/CS-T, no costs).
-// Supports decimals by scaling to integer ticks (2 decimals cap).
-
 import type { Segment, SimulationResult, StrategyId } from "@/Types/types";
 import { computeScale, scaleToInt, unscale } from "./timeScale";
 
@@ -136,7 +131,6 @@ function simulateThreadsInt(opts: {
   const procQ = Math.max(1, safeInt(opts.processQuantum ?? 2, 2));
   const thrQ = Math.max(1, safeInt(opts.threadQuantum ?? 2, 2));
 
-  // ---- Meta / Remaining ----
   const threadMeta: Record<string, Meta> = {};
   const threadRemaining: Record<string, number> = {};
   const threadFirstStart: Record<string, number | null> = {};
@@ -156,7 +150,7 @@ function simulateThreadsInt(opts: {
       threadMeta[key] = { arrival: t.arrival, burst: t.burst };
 
       const b = Number.isFinite(t.burst) ? t.burst : 1;
-      threadRemaining[key] = Math.max(1, Math.floor(b)); // int ticks in this function
+      threadRemaining[key] = Math.max(1, Math.floor(b));
 
       threadFirstStart[key] = null;
       threadCompletion[key] = null;
@@ -173,7 +167,6 @@ function simulateThreadsInt(opts: {
     }))
     .sort((a, b) => a.arrival - b.arrival || a.key.localeCompare(b.key));
 
-  // ---- Ready queues ----
   const readyThreadsByPid: Record<string, string[]> = {};
   for (const p of opts.processes) readyThreadsByPid[p.pid] = [];
 
@@ -202,7 +195,6 @@ function simulateThreadsInt(opts: {
     guard < maxTicks && completedThreads < totalThreads;
     guard++
   ) {
-    // arrivals
     while (
       nextArrivalIdx < arrivals.length &&
       arrivals[nextArrivalIdx].arrival === time
@@ -224,7 +216,6 @@ function simulateThreadsInt(opts: {
       nextArrivalIdx++;
     }
 
-    // cleanup queues
     for (const pid of Object.keys(readyThreadsByPid))
       cleanupThreadQueue(readyThreadsByPid[pid], threadRemaining);
     for (let i = readyProcQueue.length - 1; i >= 0; i--) {
@@ -240,7 +231,6 @@ function simulateThreadsInt(opts: {
         readyProcQueue.splice(i, 1);
     }
 
-    // recompute processRemaining
     for (const pid of Object.keys(processRemaining)) {
       let sum = 0;
       for (const key of Object.keys(threadMeta)) {
@@ -249,7 +239,6 @@ function simulateThreadsInt(opts: {
       processRemaining[pid] = sum;
     }
 
-    // if runningPid became unrunnable
     if (
       runningPid &&
       !isProcessRunnable(
@@ -265,7 +254,6 @@ function simulateThreadsInt(opts: {
       thrQuantumLeft = thrQ;
     }
 
-    // process RR quantum expiry: rotate process
     if (opts.processStrategy === "RR" && runningPid && procQuantumLeft <= 0) {
       if (runningThreadKey && (threadRemaining[runningThreadKey] ?? 0) > 0) {
         readyThreadsByPid[runningPid].push(runningThreadKey);
@@ -283,7 +271,6 @@ function simulateThreadsInt(opts: {
       thrQuantumLeft = thrQ;
     }
 
-    // ---- Choose process ----
     let chosenPid: string | null = null;
 
     if (opts.processStrategy === "RR") {
@@ -351,9 +338,7 @@ function simulateThreadsInt(opts: {
       continue;
     }
 
-    // ---- Preemption bookkeeping ----
     if (runningPid && chosenPid !== runningPid) {
-      // switching process: requeue running thread (if any)
       if (runningThreadKey && (threadRemaining[runningThreadKey] ?? 0) > 0) {
         readyThreadsByPid[runningPid].push(runningThreadKey);
         runningThreadKey = null;
@@ -363,7 +348,6 @@ function simulateThreadsInt(opts: {
       )
         enqueueProc(runningPid, chosenPid);
     } else if (runningPid && chosenPid === runningPid) {
-      // switching thread in same process
       if (
         runningThreadInChosen &&
         chosenThread !== runningThreadInChosen &&
@@ -374,12 +358,10 @@ function simulateThreadsInt(opts: {
       }
     }
 
-    // reserve chosen from queues
     if (chosenPid !== runningPid) removeOnce(readyProcQueue, chosenPid);
     if (chosenThread !== runningThreadInChosen)
       removeOnce(readyThreadsByPid[chosenPid], chosenThread);
 
-    // ---- Execute one tick ----
     if (opts.processStrategy === "RR" && chosenPid !== runningPid)
       procQuantumLeft = procQ;
     if (opts.threadStrategy === "RR" && chosenThread !== runningThreadInChosen)
@@ -400,7 +382,6 @@ function simulateThreadsInt(opts: {
     if (opts.processStrategy === "RR")
       procQuantumLeft = Math.max(0, procQuantumLeft - 1);
 
-    // completion
     if (threadRemaining[chosenThread] === 0) {
       threadCompletion[chosenThread] = time + 1;
       completedThreads += 1;
@@ -408,7 +389,6 @@ function simulateThreadsInt(opts: {
       runningThreadKey = null;
       thrQuantumLeft = thrQ;
     } else {
-      // thread RR slice over
       if (opts.threadStrategy === "RR" && thrQuantumLeft === 0) {
         readyThreadsByPid[chosenPid].push(chosenThread);
         runningThreadKey = null;
@@ -416,7 +396,6 @@ function simulateThreadsInt(opts: {
       }
     }
 
-    // process RR slice over
     if (opts.processStrategy === "RR" && procQuantumLeft === 0) {
       if (runningThreadKey && (threadRemaining[runningThreadKey] ?? 0) > 0) {
         readyThreadsByPid[chosenPid].push(runningThreadKey);
@@ -438,7 +417,6 @@ function simulateThreadsInt(opts: {
       runningPid = null;
       procQuantumLeft = procQ;
     } else {
-      // ensure process stays available if it still has work and isn't running
       if (
         !runningPid &&
         isProcessRunnable(chosenPid, null, threadRemaining, readyThreadsByPid)
@@ -452,7 +430,7 @@ function simulateThreadsInt(opts: {
   const makespan = timeline.length ? timeline[timeline.length - 1].end : 0;
 
   const totalBusy = timeline.reduce((sum, s) => {
-    if (!s.pid) return sum; // idle
+    if (!s.pid) return sum;
     return sum + (s.end - s.start);
   }, 0);
 
