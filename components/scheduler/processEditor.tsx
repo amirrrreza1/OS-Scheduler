@@ -90,6 +90,7 @@ function SortableRow({
           value={arrival}
           onChange={(e) => onChange(uid, { arrival: e })}
           min={0}
+          className="max-w-28"
         />
       </td>
 
@@ -98,10 +99,11 @@ function SortableRow({
           value={burst}
           onChange={(e) => onChange(uid, { burst: e })}
           min={1}
+          className="max-w-28"
         />
       </td>
 
-      <td className="p-2 text-center">
+      <td className="p-2 flex justify-center items-center">
         <Button
           variant="danger"
           onClick={() => onRemove(uid)}
@@ -189,8 +191,8 @@ export default function ProcessEditor({
                 <tr>
                   <th className="p-2 text-center"></th>
                   <th className="p-2 text-right">PID</th>
-                  <th className="p-2 text-right">Arrival Time</th>
-                  <th className="p-2 text-right">Burst Time</th>
+                  <th className="p-2 text-right">زمان ورود</th>
+                  <th className="p-2 text-right">زمان اجرا</th>
                   <th className="p-2 text-center">عملیات</th>
                 </tr>
               </thead>

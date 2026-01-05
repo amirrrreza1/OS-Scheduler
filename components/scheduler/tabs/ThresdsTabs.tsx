@@ -25,6 +25,7 @@ import Label from "@/components/ui/Custom/Label";
 import NumberInput from "@/components/ui/Custom/Input/NumberInput";
 import { STRATEGIES } from "@/lib/Scheduler/registry";
 import { isAllowedDecimalInput, parseDecimal } from "@/lib/parseNumber";
+import ContextSwitchInputs from "@/components/scheduler/ContextSwitchInputs";
 
 type ThreadUI = {
   tid: string;
@@ -71,6 +72,8 @@ export default function ThreadsTab() {
 
   const [processQuantum, setProcessQuantum] = useState<number>(2);
   const [threadQuantum, setThreadQuantum] = useState<number>(2);
+  const [processContextSwitch, setProcessContextSwitch] = useState<number>(0);
+  const [threadContextSwitch, setThreadContextSwitch] = useState<number>(0);
 
   const addProcess = () => {
     setProcesses((prev) => {
@@ -185,6 +188,8 @@ export default function ThreadsTab() {
         threadStrategy === "RR"
           ? Math.max(1, Math.floor(threadQuantum || 1))
           : undefined,
+      processContextSwitch: Math.max(0, processContextSwitch || 0),
+      threadContextSwitch: Math.max(0, threadContextSwitch || 0),
     });
   }, [
     hasAnyInvalid,
@@ -193,6 +198,8 @@ export default function ThreadsTab() {
     threadStrategy,
     processQuantum,
     threadQuantum,
+    processContextSwitch,
+    threadContextSwitch,
   ]);
 
   return (
@@ -232,7 +239,7 @@ export default function ThreadsTab() {
                   <NumberInput
                     value={processQuantum}
                     onChange={setProcessQuantum}
-                    disabled={processStrategy == "RR"}
+                    disabled={processStrategy !== "RR"}
                     min={1}
                   />
                 </div>
@@ -248,7 +255,7 @@ export default function ThreadsTab() {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-6 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>استراتژی</Label>
                 <Select
@@ -269,7 +276,7 @@ export default function ThreadsTab() {
                   <NumberInput
                     value={threadQuantum}
                     onChange={setThreadQuantum}
-                    disabled={processStrategy == "RR"}
+                    disabled={threadStrategy !== "RR"}
                     min={1}
                   />
                 </div>
@@ -277,11 +284,20 @@ export default function ThreadsTab() {
             </div>
           </div>
         </div>
+        <div className="mt-4">
+          <ContextSwitchInputs
+            processSwitch={processContextSwitch}
+            setProcessSwitch={setProcessContextSwitch}
+            threadSwitch={threadContextSwitch}
+            setThreadSwitch={setThreadContextSwitch}
+            showThread
+          />
+        </div>
       </Card>
 
       <Card
         title="ورودی‌ها"
-        subtitle="برای هر Process می‌توانید Thread اضافه کنید."
+        subtitle="برای هر فرایند می‌توانید نخ اضافه کنید."
         icon={<ChevronLeft className="h-5 w-5 text-muted-foreground" />}
       >
         <div className="space-y-4">
@@ -302,7 +318,7 @@ export default function ThreadsTab() {
                     variant="primary"
                   >
                     <Plus className="h-4 w-4" />
-                    افزودن Thread
+                    افزودن نخ
                   </Button>
                   <Button
                     size="sm"

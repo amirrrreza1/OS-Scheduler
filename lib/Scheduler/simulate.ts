@@ -47,6 +47,7 @@ function simulateInt(
   const timeline: Segment[] = [];
   let completedCount = 0;
   let nextArrivalIdx = 0;
+  let lastExecutedPid: string | null = null;
 
   policy.init?.({ state, processesById, quantum });
 
@@ -72,7 +73,7 @@ function simulateInt(
     }
 
     if (state.csRemaining > 0) {
-      pushOrMerge(timeline, "CS", state.time);
+      pushOrMerge(timeline, "CS-P", state.time);
       state.csRemaining -= 1;
 
       if (state.csRemaining === 0) {
@@ -81,11 +82,13 @@ function simulateInt(
       }
 
       policy.onTickEnd?.({ state, processesById, quantum, executedPid: null });
+      lastExecutedPid = null;
       state.time += 1;
       continue;
     }
 
     const prevRunning = state.running;
+    const prevExecuted = lastExecutedPid;
     const chosen = policy.decide({
       state,
       processesById,
@@ -106,12 +109,12 @@ function simulateInt(
       if (idx >= 0) state.ready.splice(idx, 1);
     }
 
-    if (contextSwitch > 0 && prevRunning && chosen && chosen !== prevRunning) {
+    if (contextSwitch > 0 && prevExecuted && chosen && chosen !== prevExecuted) {
       state.running = null;
       state.csTo = chosen;
       state.csRemaining = contextSwitch;
 
-      pushOrMerge(timeline, "CS", state.time);
+      pushOrMerge(timeline, "CS-P", state.time);
       state.csRemaining -= 1;
 
       if (state.csRemaining === 0) {
@@ -120,6 +123,7 @@ function simulateInt(
       }
 
       policy.onTickEnd?.({ state, processesById, quantum, executedPid: null });
+      lastExecutedPid = null;
       state.time += 1;
       continue;
     }
@@ -144,6 +148,7 @@ function simulateInt(
     }
 
     policy.onTickEnd?.({ state, processesById, quantum, executedPid });
+    lastExecutedPid = executedPid ?? null;
     state.time += 1;
   }
 
@@ -151,7 +156,7 @@ function simulateInt(
 
   const totalBusy = timeline.reduce((sum, s) => {
     if (!s.pid) return sum;
-    if (s.pid === "CS") return sum;
+    if (s.pid === "CS-P" || s.pid === "CS-T") return sum;
     return sum + (s.end - s.start);
   }, 0);
 

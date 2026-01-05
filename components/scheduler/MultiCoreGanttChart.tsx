@@ -4,9 +4,10 @@ import { useMemo, useState } from "react";
 import type { Segment } from "@/Types/types";
 
 type Props = {
-  timeline: Segment[];
+  timelines: Segment[][];
   unitPx?: number;
-  barHeightPx?: number;
+  rowHeightPx?: number;
+  rowGapPx?: number;
 };
 
 type ColorSet = { bg: string; border: string; text: string };
@@ -97,34 +98,46 @@ type HoverInfo = {
   start: number;
   end: number;
   dur: number;
+  core: number;
 };
 
-export default function GanttChart({
-  timeline,
+export default function MultiCoreGanttChart({
+  timelines,
   unitPx = 70,
-  barHeightPx = 45,
+  rowHeightPx = 45,
+  rowGapPx = 10,
 }: Props) {
   const [hover, setHover] = useState<HoverInfo | null>(null);
   const [pos, setPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  const minT = timeline[0].start;
-  const maxT = timeline[timeline.length - 1].end;
+  const flat = timelines.flat();
+  if (!flat.length) {
+    return (
+      <div className="rounded-xl border border-border bg-muted/10 p-4 text-sm text-muted-foreground">
+        No timeline data to display.
+      </div>
+    );
+  }
+
+  const minT = Math.min(...flat.map((s) => s.start));
+  const maxT = Math.max(...flat.map((s) => s.end));
   const span = Math.max(0, maxT - minT);
 
-  const widthPx = Math.max(1, span) * unitPx;
+  const labelOffset = 60;
+  const widthPx = Math.max(1, span) * unitPx + labelOffset;
+  const totalHeight =
+    timelines.length * rowHeightPx +
+    Math.max(0, timelines.length - 1) * rowGapPx;
 
   const step = chooseTickStep(span);
   const startTick = Math.floor(minT / step) * step;
   const endTick = Math.ceil(maxT / step) * step;
 
-  const onMove = (e: React.MouseEvent) =>
-    setPos({ x: e.clientX, y: e.clientY });
-
   const ticks = useMemo(() => {
     const out: { t: number; left: number; major: boolean }[] = [];
     let idx = 0;
     for (let t = startTick; t <= endTick + 1e-9; t += step) {
-      const left = (t - minT) * unitPx;
+      const left = labelOffset + (t - minT) * unitPx;
       const major = idx % 5 === 0;
       out.push({ t, left, major });
       idx++;
@@ -132,13 +145,8 @@ export default function GanttChart({
     return out;
   }, [startTick, endTick, step, minT, unitPx]);
 
-  if (!timeline?.length) {
-    return (
-      <div className="rounded-xl border border-border bg-muted/10 p-4 text-sm text-muted-foreground">
-        نمودار گانت برای نمایش وجود ندارد.
-      </div>
-    );
-  }
+  const onMove = (e: React.MouseEvent) =>
+    setPos({ x: e.clientX, y: e.clientY });
 
   return (
     <div className="space-y-3" dir="ltr">
@@ -149,12 +157,12 @@ export default function GanttChart({
         >
           <div className="rounded-lg border border-border bg-background/95 backdrop-blur px-3 py-2 shadow-lg">
             <div className="text-xs font-semibold text-foreground" dir="rtl">
-              {hover.label}
+              {hover.label} - Core {hover.core}
             </div>
             <div className="mt-1 text-[11px] text-muted-foreground" dir="ltr">
-              {formatTime(hover.start)} → {formatTime(hover.end)}{" "}
+              {formatTime(hover.start)} - {formatTime(hover.end)}{" "}
               <span className="opacity-80">
-                ( زمان اجرا: {formatTime(hover.dur)} ثانیه)
+                (dur: {formatTime(hover.dur)})
               </span>
             </div>
           </div>
@@ -162,7 +170,6 @@ export default function GanttChart({
       ) : null}
 
       <div className="overflow-x-auto rounded-xl border border-border bg-muted/10 p-3">
-        {/* RULER (LTR) */}
         <div dir="ltr" className="mb-2">
           <div
             className="relative"
@@ -191,57 +198,77 @@ export default function GanttChart({
         <div
           dir="ltr"
           className="relative"
-          style={{ width: widthPx, minWidth: widthPx, height: barHeightPx }}
+          style={{
+            width: widthPx,
+            minWidth: widthPx,
+            height: totalHeight,
+          }}
           onMouseMove={onMove}
         >
-          {timeline.map((s, idx) => {
-            const dur = s.end - s.start;
-            const w = dur * unitPx;
-            const left = (s.start - minT) * unitPx;
-
-            const info = segmentInfo(s.pid);
-            const label = info.label;
-            const barLabel = info.barLabel;
-            const c = info.color;
-
-            const wGapped = Math.max(0, w - 0);
-
-            const showText = wGapped >= (info.isCS ? 40 : 70);
-
+          {timelines.map((timeline, rowIdx) => {
+            const top = rowIdx * (rowHeightPx + rowGapPx);
             return (
-              <div
-                key={`${idx}-${s.pid ?? "IDLE"}-${s.start}-${s.end}`}
-                className={[
-                  "absolute top-0 flex items-center justify-center select-none",
-                  "border shadow-sm rounded-lg",
-                  "transition-transform hover:-translate-y-px hover:shadow-md",
-                  "cursor-help",
-                  c.bg,
-                  c.border,
-                  c.text,
-                ].join(" ")}
-                style={{
-                  left,
-                  width: wGapped,
-                  minWidth: wGapped,
-                  height: barHeightPx,
-                }}
-                onMouseEnter={(e) => {
-                  setHover({ label, start: s.start, end: s.end, dur });
-                  setPos({ x: e.clientX, y: e.clientY });
-                }}
-                onMouseLeave={() => setHover(null)}
-              >
-                {showText ? (
-                  <div className="relative flex flex-col items-center leading-tight">
-                    <div className="text-sm font-semibold" dir="ltr">
-                      {barLabel}
+              <div key={`row-${rowIdx}`}>
+                <div
+                  className="absolute left-2 text-[11px] text-muted-foreground"
+                  style={{ top: top + 4 }}
+                >
+                  Core {rowIdx + 1}
+                </div>
+                {timeline.map((s, idx) => {
+                  const dur = s.end - s.start;
+                  const w = dur * unitPx;
+                  const left = labelOffset + (s.start - minT) * unitPx;
+                  const info = segmentInfo(s.pid);
+                  const label = info.label;
+                  const barLabel = info.barLabel;
+                  const c = info.color;
+                  const showText = w >= (info.isCS ? 40 : 70);
+
+                  return (
+                    <div
+                      key={`${rowIdx}-${idx}-${s.pid ?? "IDLE"}-${s.start}-${s.end}`}
+                      className={[
+                        "absolute flex items-center justify-center select-none",
+                        "border shadow-sm rounded-lg",
+                        "transition-transform hover:-translate-y-px hover:shadow-md",
+                        "cursor-help",
+                        c.bg,
+                        c.border,
+                        c.text,
+                      ].join(" ")}
+                      style={{
+                        top,
+                        left,
+                        width: w,
+                        minWidth: w,
+                        height: rowHeightPx,
+                      }}
+                      onMouseEnter={(e) => {
+                        setHover({
+                          label,
+                          start: s.start,
+                          end: s.end,
+                          dur,
+                          core: rowIdx + 1,
+                        });
+                        setPos({ x: e.clientX, y: e.clientY });
+                      }}
+                      onMouseLeave={() => setHover(null)}
+                    >
+                      {showText ? (
+                        <div className="relative flex flex-col items-center leading-tight">
+                          <div className="text-sm font-semibold" dir="ltr">
+                            {barLabel}
+                          </div>
+                          <div className="text-[11px] opacity-90" dir="ltr">
+                            {formatTime(s.start)} - {formatTime(s.end)}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
-                    <div className="text-[11px] opacity-90" dir="ltr">
-                      {formatTime(s.start)} → {formatTime(s.end)}
-                    </div>
-                  </div>
-                ) : null}
+                  );
+                })}
               </div>
             );
           })}

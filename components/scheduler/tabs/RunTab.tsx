@@ -6,6 +6,7 @@ import StrategySelect, {
   QuantumInput,
   type StrategyId,
 } from "@/components/scheduler/StrategySelect";
+import ContextSwitchInputs from "@/components/scheduler/ContextSwitchInputs";
 import GanttChart from "@/components/scheduler/GanttChart";
 import MetricsTable from "@/components/scheduler/MetricsTable";
 
@@ -31,9 +32,11 @@ export default function RunTab({
 }) {
   const [algo, setAlgo] = useState<StrategyId>("FCFS");
   const [quantum, setQuantum] = useState<number>(2);
+  const [contextSwitch, setContextSwitch] = useState<number>(0);
 
   const needsQuantum = algo === "RR";
   const q = Math.max(1, Math.floor(quantum || 1));
+  const cs = Math.max(0, contextSwitch || 0);
 
   const processesValid = useMemo(() => {
     if (rows.length < 1) return false;
@@ -50,12 +53,33 @@ export default function RunTab({
   const policy = useMemo(() => getStrategy(algo, q), [algo, q]);
 
   const result = useMemo(
-    () => (valid ? simulate(simProcesses, policy, { quantum: q }) : null),
-    [valid, simProcesses, policy, q]
+    () =>
+      valid
+        ? simulate(simProcesses, policy, { quantum: q, contextSwitch: cs })
+        : null,
+    [valid, simProcesses, policy, q, cs]
   );
 
   return (
     <div className="space-y-4">
+      <Card
+        title="انتخاب الگوریتم"
+        subtitle="الگوریتم زمان‌بندی را انتخاب کنید"
+        icon={<SlidersHorizontal className="h-4 w-4 text-muted-foreground" />}
+      >
+        <div className="grid gap-6 md:grid-cols-3">
+          <StrategySelect label="الگوریتم" value={algo} onChange={setAlgo} />
+          <QuantumInput
+            quantum={quantum}
+            setQuantum={setQuantum}
+            enabled={needsQuantum}
+          />
+          <ContextSwitchInputs
+            processSwitch={contextSwitch}
+            setProcessSwitch={setContextSwitch}
+          />
+        </div>
+      </Card>
       <Card
         title="ورودی پردازش‌ها"
         subtitle="لیست پردازش‌ها را تعریف کنید"
@@ -63,22 +87,6 @@ export default function RunTab({
       >
         <ProcessEditor rows={rows} setRows={setRows} />
       </Card>
-
-      <Card
-        title="انتخاب الگوریتم"
-        subtitle="الگوریتم زمان‌بندی را انتخاب کنید"
-        icon={<SlidersHorizontal className="h-4 w-4 text-muted-foreground" />}
-      >
-        <div className="grid gap-6 grid-cols-2">
-          <StrategySelect label="الگوریتم" value={algo} onChange={setAlgo} />
-          <QuantumInput
-            quantum={quantum}
-            setQuantum={setQuantum}
-            enabled={needsQuantum}
-          />
-        </div>
-      </Card>
-
       <Card
         title={!valid ? "خطا" : "خروجی"}
         subtitle={!valid ? null : "نمودار گانت و شاخص‌های عملکرد"}

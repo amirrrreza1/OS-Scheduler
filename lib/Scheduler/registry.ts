@@ -12,6 +12,9 @@ export const STRATEGIES: { id: StrategyId; titleFa: string }[] = [
   { id: "SJF", titleFa: "SJF" },
   { id: "SRT", titleFa: "SRT" },
   { id: "HRRN", titleFa: "HRRN" },
+];
+
+export const MULTI_CORE_STRATEGIES: { id: StrategyId; titleFa: string }[] = [
   { id: "LPT", titleFa: "LPT" },
   { id: "RPT", titleFa: "RPT" },
 ];
