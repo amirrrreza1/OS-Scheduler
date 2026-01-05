@@ -124,12 +124,16 @@ function simulateThreadsInt(opts: {
   threadStrategy: StrategyId;
   processQuantum?: number;
   threadQuantum?: number;
+  processContextSwitch?: number;
+  threadContextSwitch?: number;
   maxTicks?: number;
 }): SimulationResult {
   const maxTicks = safeInt(opts.maxTicks ?? 200000, 200000);
 
   const procQ = Math.max(1, safeInt(opts.processQuantum ?? 2, 2));
   const thrQ = Math.max(1, safeInt(opts.threadQuantum ?? 2, 2));
+  const procCS = Math.max(0, safeInt(opts.processContextSwitch ?? 0, 0));
+  const thrCS = Math.max(0, safeInt(opts.threadContextSwitch ?? 0, 0));
 
   const threadMeta: Record<string, Meta> = {};
   const threadRemaining: Record<string, number> = {};
@@ -184,6 +188,17 @@ function simulateThreadsInt(opts: {
 
   let procQuantumLeft = procQ;
   let thrQuantumLeft = thrQ;
+
+  let procCsRemaining = 0;
+  let procCsToPid: string | null = null;
+  let procCsToThread: string | null = null;
+
+  let thrCsRemaining = 0;
+  let thrCsToThread: string | null = null;
+  let thrCsPid: string | null = null;
+
+  let lastExecutedPid: string | null = null;
+  let lastExecutedThreadKey: string | null = null;
 
   const timeline: Segment[] = [];
 
@@ -254,6 +269,36 @@ function simulateThreadsInt(opts: {
       thrQuantumLeft = thrQ;
     }
 
+    if (procCsRemaining > 0) {
+      pushOrMerge(timeline, "CS-P", time);
+      procCsRemaining -= 1;
+      if (procCsRemaining === 0) {
+        runningPid = procCsToPid;
+        runningThreadKey = procCsToThread;
+        procCsToPid = null;
+        procCsToThread = null;
+      }
+      lastExecutedPid = null;
+      lastExecutedThreadKey = null;
+      time += 1;
+      continue;
+    }
+
+    if (thrCsRemaining > 0) {
+      pushOrMerge(timeline, "CS-T", time);
+      thrCsRemaining -= 1;
+      if (thrCsRemaining === 0) {
+        runningPid = thrCsPid;
+        runningThreadKey = thrCsToThread;
+        thrCsPid = null;
+        thrCsToThread = null;
+      }
+      lastExecutedPid = null;
+      lastExecutedThreadKey = null;
+      time += 1;
+      continue;
+    }
+
     if (opts.processStrategy === "RR" && runningPid && procQuantumLeft <= 0) {
       if (runningThreadKey && (threadRemaining[runningThreadKey] ?? 0) > 0) {
         readyThreadsByPid[runningPid].push(runningThreadKey);
@@ -301,6 +346,8 @@ function simulateThreadsInt(opts: {
 
     if (!chosenPid) {
       pushOrMerge(timeline, null, time);
+      lastExecutedPid = null;
+      lastExecutedThreadKey = null;
       time += 1;
       continue;
     }
@@ -334,6 +381,8 @@ function simulateThreadsInt(opts: {
     if (!chosenThread) {
       removeOnce(readyProcQueue, chosenPid);
       pushOrMerge(timeline, null, time);
+      lastExecutedPid = null;
+      lastExecutedThreadKey = null;
       time += 1;
       continue;
     }
@@ -369,6 +418,59 @@ function simulateThreadsInt(opts: {
 
     runningPid = chosenPid;
     runningThreadKey = chosenThread;
+
+    const shouldProcessSwitch =
+      procCS > 0 &&
+      lastExecutedPid != null &&
+      chosenPid !== lastExecutedPid;
+
+    const shouldThreadSwitch =
+      !shouldProcessSwitch &&
+      thrCS > 0 &&
+      lastExecutedThreadKey != null &&
+      chosenThread !== lastExecutedThreadKey &&
+      chosenPid === lastExecutedPid;
+
+    if (shouldProcessSwitch) {
+      runningPid = null;
+      runningThreadKey = null;
+      procCsRemaining = procCS;
+      procCsToPid = chosenPid;
+      procCsToThread = chosenThread;
+
+      pushOrMerge(timeline, "CS-P", time);
+      procCsRemaining -= 1;
+      if (procCsRemaining === 0) {
+        runningPid = procCsToPid;
+        runningThreadKey = procCsToThread;
+        procCsToPid = null;
+        procCsToThread = null;
+      }
+      lastExecutedPid = null;
+      lastExecutedThreadKey = null;
+      time += 1;
+      continue;
+    }
+
+    if (shouldThreadSwitch) {
+      runningThreadKey = null;
+      thrCsRemaining = thrCS;
+      thrCsToThread = chosenThread;
+      thrCsPid = chosenPid;
+
+      pushOrMerge(timeline, "CS-T", time);
+      thrCsRemaining -= 1;
+      if (thrCsRemaining === 0) {
+        runningPid = thrCsPid;
+        runningThreadKey = thrCsToThread;
+        thrCsPid = null;
+        thrCsToThread = null;
+      }
+      lastExecutedPid = null;
+      lastExecutedThreadKey = null;
+      time += 1;
+      continue;
+    }
 
     pushOrMerge(timeline, chosenThread, time);
 
@@ -424,6 +526,8 @@ function simulateThreadsInt(opts: {
         enqueueProc(chosenPid, null);
     }
 
+    lastExecutedPid = chosenPid;
+    lastExecutedThreadKey = chosenThread;
     time += 1;
   }
 
@@ -431,6 +535,7 @@ function simulateThreadsInt(opts: {
 
   const totalBusy = timeline.reduce((sum, s) => {
     if (!s.pid) return sum;
+    if (s.pid === "CS-P" || s.pid === "CS-T") return sum;
     return sum + (s.end - s.start);
   }, 0);
 
@@ -481,6 +586,8 @@ export function simulateThreads(opts: {
   threadStrategy: StrategyId;
   processQuantum?: number;
   threadQuantum?: number;
+  processContextSwitch?: number;
+  threadContextSwitch?: number;
   maxTicks?: number;
 }): SimulationResult {
   const nums: number[] = [];
@@ -489,6 +596,8 @@ export function simulateThreads(opts: {
     for (const t of p.threads) nums.push(t.arrival, t.burst);
   if (opts.processQuantum != null) nums.push(opts.processQuantum);
   if (opts.threadQuantum != null) nums.push(opts.threadQuantum);
+  if (opts.processContextSwitch != null) nums.push(opts.processContextSwitch);
+  if (opts.threadContextSwitch != null) nums.push(opts.threadContextSwitch);
 
   const scale = computeScale(nums, 2);
 
@@ -511,6 +620,14 @@ export function simulateThreads(opts: {
     threadQuantum:
       opts.threadQuantum != null
         ? Math.max(1, scaleToInt(opts.threadQuantum, scale))
+        : undefined,
+    processContextSwitch:
+      opts.processContextSwitch != null
+        ? Math.max(0, scaleToInt(opts.processContextSwitch, scale))
+        : undefined,
+    threadContextSwitch:
+      opts.threadContextSwitch != null
+        ? Math.max(0, scaleToInt(opts.threadContextSwitch, scale))
         : undefined,
   };
 

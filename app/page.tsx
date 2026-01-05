@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Play, GitCompare, BookOpen, Layers } from "lucide-react";
+import { Play, GitCompare, BookOpen, Layers, Cpu } from "lucide-react";
 
 import RunTab from "@/components/scheduler/tabs/RunTab";
 import HelpTab from "@/components/scheduler/tabs/HelpTab";
 import { makeUid, ProcessRow } from "@/lib/Scheduler/processRows";
 import CompareTab from "@/components/scheduler/tabs/compareTab";
 import ThreadsTab from "@/components/scheduler/tabs/ThresdsTabs";
+import MultiCoreTab from "@/components/scheduler/tabs/MultiCoreTab";
 
 export default function HomePage() {
   const [rows, setRows] = useState<ProcessRow[]>([
@@ -40,6 +41,10 @@ export default function HomePage() {
             نخ ها
           </TabsTrigger>
 
+          <TabsTrigger value="multicore" className="gap-2">
+            <Cpu className="h-4 w-4" />
+            چند هسته ای
+          </TabsTrigger>
           <TabsTrigger value="help" className="gap-2">
             <BookOpen className="h-4 w-4" />
             راهنما
@@ -60,6 +65,9 @@ export default function HomePage() {
 
         <TabsContent value="help" className="mt-4">
           <HelpTab />
+        </TabsContent>
+        <TabsContent value="multicore" className="mt-4">
+          <MultiCoreTab rows={rows} setRows={setRows} />
         </TabsContent>
       </Tabs>
     </main>

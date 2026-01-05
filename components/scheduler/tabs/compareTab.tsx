@@ -6,6 +6,7 @@ import StrategySelect, {
   QuantumInput,
   type StrategyId,
 } from "@/components/scheduler/StrategySelect";
+import ContextSwitchInputs from "@/components/scheduler/ContextSwitchInputs";
 import GanttChart from "@/components/scheduler/GanttChart";
 import MetricsTable from "@/components/scheduler/MetricsTable";
 
@@ -32,9 +33,11 @@ export default function CompareTab({
   const [algoA, setAlgoA] = useState<StrategyId>("FCFS");
   const [algoB, setAlgoB] = useState<StrategyId>("SJF");
   const [quantum, setQuantum] = useState<number>(2);
+  const [contextSwitch, setContextSwitch] = useState<number>(0);
 
   const needsQuantum = [algoA, algoB].includes("RR");
   const q = Math.max(1, Math.floor(quantum || 1));
+  const cs = Math.max(0, contextSwitch || 0);
 
   const processesValid = useMemo(() => {
     if (rows.length < 1) return false;
@@ -52,12 +55,18 @@ export default function CompareTab({
   const bPolicy = useMemo(() => getStrategy(algoB, q), [algoB, q]);
 
   const aResult = useMemo(
-    () => (valid ? simulate(simProcesses, aPolicy, { quantum: q }) : null),
-    [valid, simProcesses, aPolicy, q]
+    () =>
+      valid
+        ? simulate(simProcesses, aPolicy, { quantum: q, contextSwitch: cs })
+        : null,
+    [valid, simProcesses, aPolicy, q, cs]
   );
   const bResult = useMemo(
-    () => (valid ? simulate(simProcesses, bPolicy, { quantum: q }) : null),
-    [valid, simProcesses, bPolicy, q]
+    () =>
+      valid
+        ? simulate(simProcesses, bPolicy, { quantum: q, contextSwitch: cs })
+        : null,
+    [valid, simProcesses, bPolicy, q, cs]
   );
 
   const titleA = STRATEGIES.find((s) => s.id === algoA)?.titleFa ?? algoA;
@@ -65,14 +74,6 @@ export default function CompareTab({
 
   return (
     <div className="space-y-4">
-      <Card
-        title="ورودی پردازش‌ها"
-        subtitle="ورودی مشترک برای هر دو الگوریتم"
-        icon={<ClipboardList className="h-4 w-4 text-muted-foreground" />}
-      >
-        <ProcessEditor rows={rows} setRows={setRows} />
-      </Card>
-
       <Card
         title="انتخاب دو الگوریتم"
         subtitle="دو الگوریتم متفاوت انتخاب کنید تا نتایج را کنار هم مقایسه کنیم"
@@ -93,8 +94,21 @@ export default function CompareTab({
             quantum={quantum}
             setQuantum={setQuantum}
             enabled={needsQuantum}
+          />{" "}
+          <ContextSwitchInputs
+            processSwitch={contextSwitch}
+            setProcessSwitch={setContextSwitch}
           />
         </div>
+        <div className="mt-4"></div>
+      </Card>
+
+      <Card
+        title="ورودی پردازش‌ها"
+        subtitle="ورودی مشترک برای هر دو الگوریتم"
+        icon={<ClipboardList className="h-4 w-4 text-muted-foreground" />}
+      >
+        <ProcessEditor rows={rows} setRows={setRows} />
       </Card>
 
       {!valid ? (
