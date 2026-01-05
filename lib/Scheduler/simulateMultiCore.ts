@@ -85,9 +85,7 @@ function simulateInt(
     (a, b) => a.arrival - b.arrival || a.id.localeCompare(b.id)
   );
 
-  const remaining = Object.fromEntries(
-    processes.map((p) => [p.id, p.burst])
-  );
+  const remaining = Object.fromEntries(processes.map((p) => [p.id, p.burst]));
   const firstStart = Object.fromEntries(
     processes.map((p) => [p.id, null])
   ) as Record<string, number | null>;
@@ -101,7 +99,10 @@ function simulateInt(
     () => null
   );
   const csRemaining: number[] = Array.from({ length: safeCores }, () => 0);
-  const csTo: Array<string | null> = Array.from({ length: safeCores }, () => null);
+  const csTo: Array<string | null> = Array.from(
+    { length: safeCores },
+    () => null
+  );
   const lastExecuted: Array<string | null> = Array.from(
     { length: safeCores },
     () => null
@@ -130,7 +131,9 @@ function simulateInt(
     if (strategy === "LPT" || strategy === "RPT") {
       for (let i = 0; i < running.length; i++) {
         if (csRemaining[i] > 0 || csTo[i]) continue;
-        if (running[i] && (remaining[running[i]] ?? 0) > 0) continue;
+        const pid = running[i];
+        if (pid !== null && (remaining[pid] ?? 0) > 0) continue;
+
         running[i] = null;
       }
 
