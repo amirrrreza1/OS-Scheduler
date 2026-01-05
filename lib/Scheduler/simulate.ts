@@ -87,8 +87,7 @@ function simulateInt(
       continue;
     }
 
-    const prevRunning = state.running;
-    const prevExecuted = lastExecutedPid;
+    const prevExecuted: string | null = state.executed;
     const chosen = policy.decide({
       state,
       processesById,
@@ -109,7 +108,12 @@ function simulateInt(
       if (idx >= 0) state.ready.splice(idx, 1);
     }
 
-    if (contextSwitch > 0 && prevExecuted && chosen && chosen !== prevExecuted) {
+    if (
+      contextSwitch > 0 &&
+      prevExecuted &&
+      chosen &&
+      chosen !== prevExecuted
+    ) {
       state.running = null;
       state.csTo = chosen;
       state.csRemaining = contextSwitch;
