@@ -45,7 +45,7 @@ function TabsList({
     const activeRect = active.getBoundingClientRect();
 
     setIndicator({
-      x: activeRect.left - listRect.left,
+      x: activeRect.left - listRect.left + list.scrollLeft,
       w: activeRect.width,
       visible: true,
     });
@@ -67,11 +67,13 @@ function TabsList({
       attributeFilter: ["data-state"],
     });
 
+    list.addEventListener("scroll", updateIndicator, { passive: true });
     window.addEventListener("resize", updateIndicator);
 
     return () => {
       ro.disconnect();
       mo.disconnect();
+      list.removeEventListener("scroll", updateIndicator);
       window.removeEventListener("resize", updateIndicator);
     };
   }, [updateIndicator]);
@@ -81,7 +83,7 @@ function TabsList({
       ref={listRef}
       data-slot="tabs-list"
       className={cn(
-        "relative bg-black text-muted-foreground inline-flex h-9 w-fit items-center justify-center rounded-lg p-[3px]",
+        "relative bg-black text-muted-foreground inline-flex h-9 w-full items-center justify-start rounded-lg p-[3px] overflow-x-auto overflow-y-hidden sm:w-fit sm:justify-center sm:overflow-visible",
         className
       )}
       {...props}
@@ -113,7 +115,7 @@ function TabsTrigger({
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        "relative z-10 inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap",
+        "relative z-10 inline-flex h-[calc(100%-1px)] flex-none shrink-0 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap sm:flex-1",
         "text-foreground dark:text-muted-foreground",
         "transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:outline-1",
         "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring",
