@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import type { StrategyId } from "@/Types/types";
 import GanttChart from "@/components/scheduler/GanttChart";
+import ShareLinkButton from "@/components/scheduler/ShareLinkButton";
 
 import {
   Plus,
@@ -26,17 +28,15 @@ import NumberInput from "@/components/ui/Custom/Input/NumberInput";
 import { STRATEGIES } from "@/lib/Scheduler/registry";
 import { isAllowedDecimalInput, parseDecimal } from "@/lib/parseNumber";
 import ContextSwitchInputs from "@/components/scheduler/ContextSwitchInputs";
+import {
+  decodeThreadProcesses,
+  encodeThreadProcesses,
+  updateSearchParams,
+  type ThreadProcessUI,
+} from "@/lib/shareUrl";
 
-type ThreadUI = {
-  tid: string;
-  arrival: string;
-  burst: string;
-};
-
-type ProcessUI = {
-  pid: string;
-  threads: ThreadUI[];
-};
+type ProcessUI = ThreadProcessUI;
+type ThreadUI = ThreadProcessUI["threads"][number];
 
 function nextProcessName(count: number) {
   return `P${count + 1}`;
@@ -74,6 +74,63 @@ export default function ThreadsTab() {
   const [threadQuantum, setThreadQuantum] = useState<number>(2);
   const [processContextSwitch, setProcessContextSwitch] = useState<number>(0);
   const [threadContextSwitch, setThreadContextSwitch] = useState<number>(0);
+  const initRef = useRef(false);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const isStrategyId = (value: string | null): value is StrategyId =>
+    !!value && STRATEGIES.some((s) => s.id === value);
+
+  useEffect(() => {
+    if (initRef.current) return;
+    const decoded = decodeThreadProcesses(searchParams.get("th_data"));
+    if (decoded) setProcesses(decoded);
+
+    if (isStrategyId(searchParams.get("th_ps")))
+      setProcessStrategy(searchParams.get("th_ps") as StrategyId);
+    if (isStrategyId(searchParams.get("th_ts")))
+      setThreadStrategy(searchParams.get("th_ts") as StrategyId);
+
+    const pq = Number(searchParams.get("th_pq"));
+    if (Number.isFinite(pq) && pq > 0) setProcessQuantum(pq);
+    const tq = Number(searchParams.get("th_tq"));
+    if (Number.isFinite(tq) && tq > 0) setThreadQuantum(tq);
+
+    const pcs = Number(searchParams.get("th_pcs"));
+    if (Number.isFinite(pcs) && pcs >= 0) setProcessContextSwitch(pcs);
+    const tcs = Number(searchParams.get("th_tcs"));
+    if (Number.isFinite(tcs) && tcs >= 0) setThreadContextSwitch(tcs);
+
+    initRef.current = true;
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!initRef.current) return;
+    const next = updateSearchParams(searchParams, {
+      th_data: encodeThreadProcesses(processes),
+      th_ps: processStrategy,
+      th_ts: threadStrategy,
+      th_pq: String(processQuantum),
+      th_tq: String(threadQuantum),
+      th_pcs: String(processContextSwitch),
+      th_tcs: String(threadContextSwitch),
+    });
+    const nextUrl = next ? `${pathname}?${next}` : pathname;
+    if (next !== searchParams.toString())
+      router.replace(nextUrl, { scroll: false });
+  }, [
+    processes,
+    processStrategy,
+    threadStrategy,
+    processQuantum,
+    threadQuantum,
+    processContextSwitch,
+    threadContextSwitch,
+    searchParams,
+    router,
+    pathname,
+  ]);
 
   const addProcess = () => {
     setProcesses((prev) => {
@@ -208,6 +265,7 @@ export default function ThreadsTab() {
         title="تنظیمات شبیه‌سازی"
         subtitle="استراتژی‌ها و کوانتوم‌ها را انتخاب کنید و سپس ورودی‌ها را اضافه کنید."
         icon={<Settings2 className="h-5 w-5 text-muted-foreground" />}
+        right={<ShareLinkButton />}
       >
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="rounded-xl border border-border bg-background/40 p-4">

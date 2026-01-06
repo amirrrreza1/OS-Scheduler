@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Play, GitCompare, BookOpen, Layers, Cpu } from "lucide-react";
 
@@ -10,11 +11,45 @@ import { makeUid, ProcessRow } from "@/lib/Scheduler/processRows";
 import CompareTab from "@/components/scheduler/tabs/compareTab";
 import ThreadsTab from "@/components/scheduler/tabs/ThresdsTabs";
 import MultiCoreTab from "@/components/scheduler/tabs/MultiCoreTab";
+import { decodeRows, encodeRows, updateSearchParams } from "@/lib/shareUrl";
 
 export default function HomePage() {
   const [rows, setRows] = useState<ProcessRow[]>([
     { uid: makeUid(), arrival: 0, burst: 1 },
   ]);
+  const [tab, setTab] = useState("run");
+  const initRef = useRef(false);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (initRef.current) return;
+    const tabParam = searchParams.get("tab");
+    if (
+      tabParam === "run" ||
+      tabParam === "compare" ||
+      tabParam === "threads" ||
+      tabParam === "multicore" ||
+      tabParam === "help"
+    ) {
+      setTab(tabParam);
+    }
+    const decoded = decodeRows(searchParams.get("rows"));
+    if (decoded) setRows(decoded);
+    initRef.current = true;
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!initRef.current) return;
+    const next = updateSearchParams(searchParams, {
+      tab,
+      rows: encodeRows(rows),
+    });
+    const nextUrl = next ? `${pathname}?${next}` : pathname;
+    if (next !== searchParams.toString())
+      router.replace(nextUrl, { scroll: false });
+  }, [rows, tab, searchParams, router, pathname]);
 
   return (
     <main className="mx-auto max-w-6xl p-4 md:p-8 space-y-6">
@@ -24,7 +59,7 @@ export default function HomePage() {
         </h1>
       </div>
 
-      <Tabs defaultValue="run" className="w-full">
+      <Tabs value={tab} onValueChange={setTab} className="w-full">
         <TabsList>
           <TabsTrigger value="run" className="gap-2">
             <Play className="h-4 w-4" />

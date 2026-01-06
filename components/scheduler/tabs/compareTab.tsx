@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import StrategySelect, {
   QuantumInput,
@@ -9,6 +10,7 @@ import StrategySelect, {
 import ContextSwitchInputs from "@/components/scheduler/ContextSwitchInputs";
 import GanttChart from "@/components/scheduler/GanttChart";
 import MetricsTable from "@/components/scheduler/MetricsTable";
+import ShareLinkButton from "@/components/scheduler/ShareLinkButton";
 
 import type { ProcessRow } from "@/lib/Scheduler/processRows";
 import { rowsToProcesses } from "@/lib/Scheduler/processRows";
@@ -22,6 +24,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import Card from "@/components/ui/Custom/Card";
+import { updateSearchParams } from "@/lib/shareUrl";
 
 export default function CompareTab({
   rows,
@@ -34,6 +37,42 @@ export default function CompareTab({
   const [algoB, setAlgoB] = useState<StrategyId>("SJF");
   const [quantum, setQuantum] = useState<number>(2);
   const [contextSwitch, setContextSwitch] = useState<number>(0);
+  const initRef = useRef(false);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const isStrategyId = (value: string | null): value is StrategyId =>
+    !!value && STRATEGIES.some((s) => s.id === value);
+
+  useEffect(() => {
+    if (initRef.current) return;
+    if (isStrategyId(searchParams.get("cmp_a")))
+      setAlgoA(searchParams.get("cmp_a") as StrategyId);
+    if (isStrategyId(searchParams.get("cmp_b")))
+      setAlgoB(searchParams.get("cmp_b") as StrategyId);
+
+    const q = Number(searchParams.get("cmp_q"));
+    if (Number.isFinite(q) && q > 0) setQuantum(q);
+
+    const cs = Number(searchParams.get("cmp_cs"));
+    if (Number.isFinite(cs) && cs >= 0) setContextSwitch(cs);
+
+    initRef.current = true;
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!initRef.current) return;
+    const next = updateSearchParams(searchParams, {
+      cmp_a: algoA,
+      cmp_b: algoB,
+      cmp_q: String(quantum),
+      cmp_cs: String(contextSwitch),
+    });
+    const nextUrl = next ? `${pathname}?${next}` : pathname;
+    if (next !== searchParams.toString())
+      router.replace(nextUrl, { scroll: false });
+  }, [algoA, algoB, quantum, contextSwitch, searchParams, router, pathname]);
 
   const needsQuantum = [algoA, algoB].includes("RR");
   const q = Math.max(1, Math.floor(quantum || 1));
@@ -78,6 +117,7 @@ export default function CompareTab({
         title="انتخاب دو الگوریتم"
         subtitle="دو الگوریتم متفاوت انتخاب کنید تا نتایج را کنار هم مقایسه کنیم"
         icon={<GitCompareArrows className="h-4 w-4 text-muted-foreground" />}
+        right={<ShareLinkButton />}
       >
         <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
           <StrategySelect

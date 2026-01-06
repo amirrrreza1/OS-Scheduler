@@ -162,7 +162,6 @@ export default function GanttChart({
       ) : null}
 
       <div className="overflow-x-auto rounded-xl border border-border bg-muted/10 p-3">
-        {/* RULER (LTR) */}
         <div dir="ltr" className="mb-2">
           <div
             className="relative"

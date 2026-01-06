@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import StrategySelect, {
   QuantumInput,
@@ -9,10 +10,11 @@ import StrategySelect, {
 import ContextSwitchInputs from "@/components/scheduler/ContextSwitchInputs";
 import GanttChart from "@/components/scheduler/GanttChart";
 import MetricsTable from "@/components/scheduler/MetricsTable";
+import ShareLinkButton from "@/components/scheduler/ShareLinkButton";
 
 import type { ProcessRow } from "@/lib/Scheduler/processRows";
 import { rowsToProcesses } from "@/lib/Scheduler/processRows";
-import { getStrategy } from "@/lib/Scheduler/registry";
+import { getStrategy, STRATEGIES } from "@/lib/Scheduler/registry";
 import { simulate } from "@/lib/Scheduler/simulate";
 import ProcessEditor from "../processEditor";
 import {
@@ -22,6 +24,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import Card from "@/components/ui/Custom/Card";
+import { updateSearchParams } from "@/lib/shareUrl";
 
 export default function RunTab({
   rows,
@@ -33,6 +36,39 @@ export default function RunTab({
   const [algo, setAlgo] = useState<StrategyId>("FCFS");
   const [quantum, setQuantum] = useState<number>(2);
   const [contextSwitch, setContextSwitch] = useState<number>(0);
+  const initRef = useRef(false);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const isStrategyId = (value: string | null): value is StrategyId =>
+    !!value && STRATEGIES.some((s) => s.id === value);
+
+  useEffect(() => {
+    if (initRef.current) return;
+    if (isStrategyId(searchParams.get("run_algo")))
+      setAlgo(searchParams.get("run_algo") as StrategyId);
+
+    const q = Number(searchParams.get("run_q"));
+    if (Number.isFinite(q) && q > 0) setQuantum(q);
+
+    const cs = Number(searchParams.get("run_cs"));
+    if (Number.isFinite(cs) && cs >= 0) setContextSwitch(cs);
+
+    initRef.current = true;
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!initRef.current) return;
+    const next = updateSearchParams(searchParams, {
+      run_algo: algo,
+      run_q: String(quantum),
+      run_cs: String(contextSwitch),
+    });
+    const nextUrl = next ? `${pathname}?${next}` : pathname;
+    if (next !== searchParams.toString())
+      router.replace(nextUrl, { scroll: false });
+  }, [algo, quantum, contextSwitch, searchParams, router, pathname]);
 
   const needsQuantum = algo === "RR";
   const q = Math.max(1, Math.floor(quantum || 1));
@@ -66,6 +102,7 @@ export default function RunTab({
         title="انتخاب الگوریتم"
         subtitle="الگوریتم زمان‌بندی را انتخاب کنید"
         icon={<SlidersHorizontal className="h-4 w-4 text-muted-foreground" />}
+        right={<ShareLinkButton />}
       >
         <div className="grid gap-6 md:grid-cols-3">
           <StrategySelect label="الگوریتم" value={algo} onChange={setAlgo} />
